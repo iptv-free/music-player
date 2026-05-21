@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Professional Music Player</title>
+    <title>Music Player</title>
     <style>
         :root { --accent: #1db954; --bg: #fff; --text: #333; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding-bottom: 180px; }
@@ -16,7 +16,6 @@
         .pagination { display: flex; justify-content: center; gap: 5px; margin: 20px 0; align-items: center; }
         .page-btn { padding: 8px 12px; border: 1px solid #ddd; cursor: pointer; border-radius: 4px; background: #fff; }
         .page-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
-        .pagination span { padding: 0 5px; color: #555; }
 
         #footer-player { position: fixed; bottom: 0; width: 100%; background: #181818; color: white; padding: 15px; border-radius: 20px 20px 0 0; text-align: center; }
         .progress-container { width: 90%; height: 6px; background: #555; border-radius: 5px; cursor: pointer; margin: 10px auto; }
@@ -55,7 +54,12 @@
             const res = await fetch("https://raw.githubusercontent.com/iptv-free/TV/refs/heads/FREE/uzbek.m3u");
             const text = await res.text();
             text.split('\n').forEach((line, i, arr) => {
-                if(line.startsWith('#EXTINF')) allTracks.push({ title: line.split(',')[1], url: arr[i+1] });
+                if(line.startsWith('#EXTINF')) {
+                    // RAQAMLARNI OCHIRISH UCHUN:
+                    let rawTitle = line.split(',')[1] || "";
+                    let cleanTitle = rawTitle.split(' ').slice(1).join(' '); // 1-so'zni (ID) kesib tashlaydi
+                    allTracks.push({ title: cleanTitle, url: arr[i+1] });
+                }
             });
             updateUI();
         }
@@ -71,9 +75,7 @@
             const list = document.getElementById('playlist');
             list.innerHTML = "";
             const start = (page - 1) * 20;
-            const end = start + 20;
-            
-            filtered.slice(start, end).forEach((t, i) => {
+            filtered.slice(start, start + 20).forEach((t, i) => {
                 const div = document.createElement('div');
                 div.className = 'song-item';
                 div.innerHTML = `<span>${t.title}</span> <span>▶️</span>`;
@@ -89,21 +91,12 @@
             const totalPages = Math.ceil(filtered.length / 20);
             if (totalPages <= 1) return;
 
-            // 1-sahifa tugmasi
             addBtn(1);
-
             let start = Math.max(2, currentPage - 1);
             let end = Math.min(totalPages - 1, currentPage + 1);
-
-            if (start > 2) pag.appendChild(createSpan("..."));
-
-            for (let i = start; i <= end; i++) {
-                addBtn(i);
-            }
-
-            if (end < totalPages - 1) pag.appendChild(createSpan("..."));
-
-            // Oxirgi sahifa tugmasi
+            if (start > 2) pag.appendChild(document.createElement('span')).innerText = "...";
+            for (let i = start; i <= end; i++) addBtn(i);
+            if (end < totalPages - 1) pag.appendChild(document.createElement('span')).innerText = "...";
             if (totalPages > 1) addBtn(totalPages);
         }
 
@@ -111,14 +104,8 @@
             const b = document.createElement('button');
             b.className = 'page-btn ' + (i === currentPage ? 'active' : '');
             b.innerText = i;
-            b.onclick = function() { renderPage(i); }; 
+            b.onclick = () => renderPage(i);
             document.getElementById('pagination').appendChild(b);
-        }
-
-        function createSpan(text) {
-            const s = document.createElement('span');
-            s.innerText = text;
-            return s;
         }
 
         function play(idx) {
@@ -131,19 +118,13 @@
         }
 
         audio.onended = () => changeTrack(1);
-
         function togglePlay() {
             if(audio.paused) { audio.play(); document.getElementById('play-pause').innerText = "⏸️"; }
             else { audio.pause(); document.getElementById('play-pause').innerText = "▶️"; }
         }
-
         function setProgress(e) { audio.currentTime = (e.offsetX / e.target.clientWidth) * audio.duration; }
         audio.ontimeupdate = () => { document.getElementById('progress').style.width = (audio.currentTime / audio.duration) * 100 + "%"; };
-        
-        function changeTrack(d) { 
-            let nextIdx = (currentIdx + d + filtered.length) % filtered.length;
-            play(nextIdx); 
-        }
+        function changeTrack(d) { play((currentIdx + d + filtered.length) % filtered.length); }
 
         fetchM3U();
     </script>
