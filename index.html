@@ -13,19 +13,19 @@
         
         .menu { display: flex; justify-content: center; gap: 10px; margin-bottom: 10px; }
         .menu-btn { padding: 8px 16px; border-radius: 20px; border: 1px solid var(--accent); background: transparent; cursor: pointer; transition: 0.3s; }
-        .menu-btn.active { background: var(--accent); color: white; box-shadow: 0 4px 10px rgba(29, 185, 84, 0.3); }
+        .menu-btn.active { background: var(--accent); color: white; }
 
-        .song-item { display: flex; align-items: center; justify-content: space-between; padding: 15px; border-bottom: 1px solid #f9f9f9; cursor: pointer; transition: 0.2s; }
+        .song-item { display: flex; align-items: center; justify-content: space-between; padding: 15px; border-bottom: 1px solid #f9f9f9; cursor: pointer; }
         .song-item:hover { background: #f0f0f0; }
 
-        #footer-player { position: fixed; bottom: 0; width: 100%; background: #181818; color: white; padding: 15px; border-radius: 20px 20px 0 0; text-align: center; z-index: 1000; }
+        #footer-player { position: fixed; bottom: 0; width: 100%; background: #181818; color: white; padding: 15px; text-align: center; z-index: 1000; }
         .progress-container { width: 90%; height: 6px; background: #555; border-radius: 5px; cursor: pointer; margin: 10px auto; }
         #progress { height: 100%; background: var(--accent); width: 0%; border-radius: 5px; }
         .controls { display: flex; justify-content: center; align-items: center; gap: 15px; }
         
         .pagination { display: flex; justify-content: center; gap: 5px; margin: 20px 0; }
-        .page-btn { padding: 8px 12px; border: 1px solid #ddd; cursor: pointer; border-radius: 5px; transition: 0.2s; }
-        .page-btn.active { background: var(--accent); color: white; font-weight: bold; }
+        .page-btn { padding: 8px 12px; border: 1px solid #ddd; cursor: pointer; border-radius: 5px; }
+        .page-btn.active { background: var(--accent); color: white; }
     </style>
 </head>
 <body>
@@ -52,7 +52,6 @@
             <span id="play-pause" onclick="togglePlay()" style="font-size:30px; cursor:pointer">▶️</span>
             <span onclick="changeTrack(1)" style="cursor:pointer">⏭️</span>
             <span id="repeat-btn" onclick="toggleRepeat()" style="cursor:pointer; font-size: 20px;">🔁</span>
-            <input type="range" min="0" max="1" step="0.1" value="1" oninput="audio.volume=this.value" style="width: 50px;">
         </div>
         <audio id="audio"></audio>
     </div>
@@ -60,11 +59,12 @@
     <script>
         let allTracks = [], filtered = [], currentIdx = 0, currentPage = 1, currentCat = 'all', isRepeating = false;
         const audio = document.getElementById('audio');
+        // CORS proxy orqali yuklash
+        const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
-        // M3U fayllarni yuklash
         async function fetchM3U(url, cat) {
             try {
-                const res = await fetch(url);
+                const res = await fetch(CORS_PROXY + encodeURIComponent(url));
                 const text = await res.text();
                 text.split('\n').forEach((line, i, arr) => {
                     if(line.startsWith('#EXTINF')) {
@@ -72,9 +72,7 @@
                     }
                 });
                 updateUI();
-            } catch (err) {
-                console.error("Xatolik: M3U faylini yuklab bo'lmadi", err);
-            }
+            } catch (err) { console.error("Xatolik:", err); }
         }
 
         function updateUI() {
@@ -102,12 +100,14 @@
             const pag = document.getElementById('pagination');
             pag.innerHTML = "";
             const total = Math.ceil(filtered.length / 20);
-            for(let i = Math.max(1, currentPage - 2); i <= Math.min(total, currentPage + 2); i++) {
-                const b = document.createElement('button');
-                b.className = 'page-btn ' + (i === currentPage ? 'active' : '');
-                b.innerText = i;
-                b.onclick = () => renderPage(i);
-                pag.appendChild(b);
+            for(let i = 1; i <= total; i++) {
+                if(i > currentPage - 3 && i < currentPage + 3) {
+                    const b = document.createElement('button');
+                    b.className = 'page-btn ' + (i === currentPage ? 'active' : '');
+                    b.innerText = i;
+                    b.onclick = () => renderPage(i);
+                    pag.appendChild(b);
+                }
             }
         }
 
@@ -115,14 +115,9 @@
             currentIdx = idx;
             audio.src = t.url;
             document.getElementById('current-title').innerText = t.title;
-            audio.play().catch(e => console.log("Avtomatik ijro to'xtatildi:", e));
+            audio.play();
             document.getElementById('play-pause').innerText = "⏸️";
         }
-
-        audio.onended = () => {
-            if (isRepeating) { audio.currentTime = 0; audio.play(); }
-            else changeTrack(1);
-        };
 
         function togglePlay() {
             if(audio.paused) { audio.play(); document.getElementById('play-pause').innerText = "⏸️"; }
@@ -136,15 +131,14 @@
 
         function setProgress(e) {
             const width = e.target.clientWidth;
-            const clickX = e.offsetX;
-            audio.currentTime = (clickX / width) * audio.duration;
+            audio.currentTime = (e.offsetX / width) * audio.duration;
         }
 
         audio.ontimeupdate = () => {
-            if(audio.duration) {
-                document.getElementById('progress').style.width = (audio.currentTime / audio.duration) * 100 + "%";
-            }
+            if(audio.duration) document.getElementById('progress').style.width = (audio.currentTime / audio.duration) * 100 + "%";
         };
+
+        audio.onended = () => isRepeating ? (audio.currentTime = 0, audio.play()) : changeTrack(1);
 
         function changeTrack(d) {
             if(filtered.length === 0) return;
@@ -159,7 +153,6 @@
             updateUI(); 
         }
 
-        // Boshlang'ich yuklash
         fetchM3U("https://raw.githubusercontent.com/iptv-free/TV/refs/heads/FREE/MP3LAR%20201-1000.m3u", "uzb");
         fetchM3U("https://raw.githubusercontent.com/iptv-free/TV/refs/heads/FREE/mp3bob%201000.m3u", "for");
     </script>
