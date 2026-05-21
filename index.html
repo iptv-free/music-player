@@ -5,26 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Professional Music Player</title>
     <style>
-        :root { --accent: #1db954; --bg: #fff; --text: #333; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding-bottom: 180px; }
-        
+        :root { --accent: #1db954; --bg: #fff; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; padding-bottom: 180px; }
         .header { padding: 15px; border-bottom: 1px solid #eee; text-align: center; }
-        #search { width: 85%; padding: 12px; border-radius: 20px; border: 1px solid #ddd; margin-bottom: 10px; }
-        
-        .menu { display: flex; justify-content: center; gap: 10px; margin-bottom: 10px; }
-        .menu-btn { padding: 8px 16px; border-radius: 20px; border: 1px solid var(--accent); background: transparent; cursor: pointer; transition: 0.3s; }
+        #search { width: 85%; padding: 12px; border-radius: 20px; border: 1px solid #ddd; }
+        .menu { display: flex; justify-content: center; gap: 5px; margin: 10px 0; flex-wrap: wrap; }
+        .menu-btn { padding: 8px 12px; border-radius: 20px; border: 1px solid var(--accent); background: #fff; cursor: pointer; }
         .menu-btn.active { background: var(--accent); color: white; }
-
-        .song-item { display: flex; align-items: center; justify-content: space-between; padding: 15px; border-bottom: 1px solid #f9f9f9; cursor: pointer; }
-        .song-item:hover { background: #f0f0f0; }
-
-        #footer-player { position: fixed; bottom: 0; width: 100%; background: #181818; color: white; padding: 15px; text-align: center; z-index: 1000; }
-        .progress-container { width: 90%; height: 6px; background: #555; border-radius: 5px; cursor: pointer; margin: 10px auto; }
-        #progress { height: 100%; background: var(--accent); width: 0%; border-radius: 5px; }
-        .controls { display: flex; justify-content: center; align-items: center; gap: 15px; }
-        
+        .song-item { display: flex; align-items: center; justify-content: space-between; padding: 15px; border-bottom: 1px solid #eee; }
+        #footer-player { position: fixed; bottom: 0; width: 100%; background: #181818; color: white; padding: 15px; text-align: center; }
         .pagination { display: flex; justify-content: center; gap: 5px; margin: 20px 0; }
-        .page-btn { padding: 8px 12px; border: 1px solid #ddd; cursor: pointer; border-radius: 5px; }
+        .page-btn { padding: 8px 12px; border: 1px solid #ddd; cursor: pointer; }
         .page-btn.active { background: var(--accent); color: white; }
     </style>
 </head>
@@ -36,6 +27,7 @@
             <button class="menu-btn active" onclick="setCat('all', this)">Barchasi</button>
             <button class="menu-btn" onclick="setCat('uzb', this)">O'zbek</button>
             <button class="menu-btn" onclick="setCat('for', this)">Xorij</button>
+            <button class="menu-btn" onclick="showDownloaded()">💾 Yuklanganlar</button>
         </div>
     </div>
 
@@ -43,37 +35,57 @@
     <div id="pagination" class="pagination"></div>
 
     <div id="footer-player">
-        <h4 id="current-title" style="margin:5px; font-size: 14px;">Musiqa tanlang</h4>
-        <div class="progress-container" onclick="setProgress(event)">
-            <div id="progress"></div>
-        </div>
-        <div class="controls">
-            <span onclick="changeTrack(-1)" style="cursor:pointer">⏮️</span>
-            <span id="play-pause" onclick="togglePlay()" style="font-size:30px; cursor:pointer">▶️</span>
-            <span onclick="changeTrack(1)" style="cursor:pointer">⏭️</span>
-            <span id="repeat-btn" onclick="toggleRepeat()" style="cursor:pointer; font-size: 20px;">🔁</span>
-        </div>
-        <audio id="audio"></audio>
+        <h4 id="current-title" style="margin:5px;">Musiqa tanlang</h4>
+        <audio id="audio" controls style="width: 90%"></audio>
     </div>
 
     <script>
-        let allTracks = [], filtered = [], currentIdx = 0, currentPage = 1, currentCat = 'all', isRepeating = false;
-        const audio = document.getElementById('audio');
-        // CORS proxy orqali yuklash
+        let allTracks = [], filtered = [], currentCat = 'all';
         const CORS_PROXY = "https://api.allorigins.win/raw?url=";
+        const audio = document.getElementById('audio');
 
         async function fetchM3U(url, cat) {
             try {
                 const res = await fetch(CORS_PROXY + encodeURIComponent(url));
                 const text = await res.text();
                 text.split('\n').forEach((line, i, arr) => {
-                    if(line.startsWith('#EXTINF')) {
-                        allTracks.push({ title: line.split(',')[1], url: arr[i+1], cat });
-                    }
+                    if(line.startsWith('#EXTINF')) allTracks.push({ title: line.split(',')[1], url: arr[i+1], cat });
                 });
                 updateUI();
-            } catch (err) { console.error("Xatolik:", err); }
+            } catch(e) { console.error(e); }
         }
+
+        function openDB() {
+            return new Promise(res => {
+                const req = indexedDB.open("MusicDB", 1);
+                req.onupgradeneeded = e => e.target.result.createObjectStore("mp3", { keyPath: "title" });
+                req.onsuccess = e => res(e.target.result);
+            });
+        }
+
+        async function download(url, title) {
+            const res = await fetch(CORS_PROXY + encodeURIComponent(url));
+            const blob = await res.blob();
+            const db = await openDB();
+            db.transaction("mp3", "readwrite").objectStore("mp3").put({ title, blob });
+            alert(title + " saqlandi!");
+        }
+
+        async function showDownloaded() {
+            const db = await openDB();
+            db.transaction("mp3", "readonly").objectStore("mp3").getAll().onsuccess = e => {
+                const list = document.getElementById('playlist');
+                list.innerHTML = "<h3>💾 Yuklanganlar</h3>";
+                e.target.result.forEach(t => {
+                    const div = document.createElement('div');
+                    div.className = 'song-item';
+                    div.innerHTML = `<span>${t.title}</span> <button onclick="playBlob('${URL.createObjectURL(t.blob)}', '${t.title}')">▶️</button>`;
+                    list.appendChild(div);
+                });
+            };
+        }
+
+        function playBlob(url, title) { audio.src = url; document.getElementById('current-title').innerText = title; audio.play(); }
 
         function updateUI() {
             const q = document.getElementById('search').value.toLowerCase();
@@ -82,75 +94,23 @@
         }
 
         function renderPage(page) {
-            currentPage = page;
             const list = document.getElementById('playlist');
             list.innerHTML = "";
-            const start = (page - 1) * 20;
-            filtered.slice(start, start + 20).forEach((t, i) => {
+            filtered.slice((page-1)*20, page*20).forEach(t => {
                 const div = document.createElement('div');
                 div.className = 'song-item';
-                div.innerHTML = `<span>${t.title}</span> <span>▶️</span>`;
-                div.onclick = () => play(t, start + i);
+                div.innerHTML = `<span>${t.title}</span> 
+                                 <button onclick="download('${t.url}', '${t.title}')">📥</button>
+                                 <button onclick="audio.src='${t.url}'; document.getElementById('current-title').innerText='${t.title}'; audio.play()">▶️</button>`;
                 list.appendChild(div);
             });
-            renderPag();
         }
 
-        function renderPag() {
-            const pag = document.getElementById('pagination');
-            pag.innerHTML = "";
-            const total = Math.ceil(filtered.length / 20);
-            for(let i = 1; i <= total; i++) {
-                if(i > currentPage - 3 && i < currentPage + 3) {
-                    const b = document.createElement('button');
-                    b.className = 'page-btn ' + (i === currentPage ? 'active' : '');
-                    b.innerText = i;
-                    b.onclick = () => renderPage(i);
-                    pag.appendChild(b);
-                }
-            }
-        }
-
-        function play(t, idx) {
-            currentIdx = idx;
-            audio.src = t.url;
-            document.getElementById('current-title').innerText = t.title;
-            audio.play();
-            document.getElementById('play-pause').innerText = "⏸️";
-        }
-
-        function togglePlay() {
-            if(audio.paused) { audio.play(); document.getElementById('play-pause').innerText = "⏸️"; }
-            else { audio.pause(); document.getElementById('play-pause').innerText = "▶️"; }
-        }
-
-        function toggleRepeat() {
-            isRepeating = !isRepeating;
-            document.getElementById('repeat-btn').style.color = isRepeating ? "#1db954" : "white";
-        }
-
-        function setProgress(e) {
-            const width = e.target.clientWidth;
-            audio.currentTime = (e.offsetX / width) * audio.duration;
-        }
-
-        audio.ontimeupdate = () => {
-            if(audio.duration) document.getElementById('progress').style.width = (audio.currentTime / audio.duration) * 100 + "%";
-        };
-
-        audio.onended = () => isRepeating ? (audio.currentTime = 0, audio.play()) : changeTrack(1);
-
-        function changeTrack(d) {
-            if(filtered.length === 0) return;
-            currentIdx = (currentIdx + d + filtered.length) % filtered.length;
-            play(filtered[currentIdx], currentIdx);
-        }
-
-        function setCat(cat, btn) { 
+        function setCat(cat, btn) {
             document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            currentCat = cat; 
-            updateUI(); 
+            currentCat = cat;
+            updateUI();
         }
 
         fetchM3U("https://raw.githubusercontent.com/iptv-free/TV/refs/heads/FREE/MP3LAR%20201-1000.m3u", "uzb");
