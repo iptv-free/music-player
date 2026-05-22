@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="uz">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Musiqa Player</title>
+    <title>Music Player Pro</title>
     <style>
         :root {
             --bg-color: #1E2538;
@@ -145,7 +145,6 @@
         }
         .action-btn:hover, .action-btn:active { opacity: 1; transform: scale(1.15); }
         .action-btn.liked { color: #FF5A90; opacity: 1; }
-        .action-btn.downloaded { color: #00E676; opacity: 1; }
 
         .pagination {
             display: flex; justify-content: center; padding: 12px;
@@ -153,15 +152,14 @@
         }
         .page-btn {
             background: transparent; border: 1px solid rgba(255,255,255,0.1);
-            color: var(--text-sub); padding: 6px 12px; border-radius: 8px;
-            cursor: pointer; font-size: 12px; min-width: 32px;
+            color: var(--text-sub); padding: 8px 14px; border-radius: 8px;
+            cursor: pointer; font-size: 14px; min-width: 40px;
         }
         .page-btn.active {
             background: var(--primary); color: #000;
             border-color: var(--primary); font-weight: bold;
         }
 
-        /* PLAYER FOOTER - FIXED POSITION */
         .player-footer {
             background: #151B29;
             padding: 12px 15px 20px 15px;
@@ -236,13 +234,13 @@
 
     <div class="app-container">
         <div class="header">
-            <h2>🎵 Musiqa Player</h2>
+            <h2>🎵 MP3-PLAYER</h2>
             <button class="icon-btn" onclick="toggleSettings()">⚙️</button>
         </div>
 
         <div id="settingsModal" class="settings-modal" onclick="closeSettings(event)">
             <div class="settings-content">
-                <h3 style="margin-bottom: 15px;">Rangni tanlang</h3>
+                <h3 style="margin-bottom: 15px;">Choose Theme</h3>
                 <div class="theme-options">
                     <div class="color-circle active" style="background: #7C4DFF;" onclick="setTheme('#7C4DFF', '#1E2538', this)"></div>
                     <div class="color-circle" style="background: #FF9100;" onclick="setTheme('#FF9100', '#1E2538', this)"></div>
@@ -250,31 +248,31 @@
                     <div class="color-circle" style="background: #FF5A90;" onclick="setTheme('#FF5A90', '#110F20', this)"></div>
                     <div class="color-circle" style="background: #00E676;" onclick="setTheme('#00E676', '#0D1F15', this)"></div>
                 </div>
-                <button onclick="closeModal()" style="margin-top: 20px; padding: 12px 30px; background: var(--primary); border: none; border-radius: 10px; color: #000; font-weight: bold; cursor: pointer;">Yopish</button>
+                <button onclick="closeModal()" style="margin-top: 20px; padding: 12px 30px; background: var(--primary); border: none; border-radius: 10px; color: #000; font-weight: bold; cursor: pointer;">Close</button>
             </div>
         </div>
 
         <div class="tabs">
-            <div class="tab active" onclick="switchTab('all')">HAMMASI <span class="count" id="allCount">0</span></div>
-            <div class="tab" onclick="switchTab('favorites')">❤️ TANLANGANLAR<span class="count" id="favCount">0</span></div>
-           
+            <div class="tab active" onclick="switchTab('all')">ALL <span class="count" id="allCount">0</span></div>
+            <div class="tab" onclick="switchTab('favorites')">❤️ FAV <span class="count" id="favCount">0</span></div>
+            <div class="tab" onclick="loadSource('uzbek')">UZBEK</div>
+            <div class="tab" onclick="loadSource('foreign')">EURO</div>
         </div>
 
         <div class="search-box">
             <span class="search-icon">🔍</span>
-            <input type="text" id="search" placeholder="Qidirish..." onkeyup="updateUI()">
+            <input type="text" id="search" placeholder="SEARCH..." onkeyup="handleSearch()">
         </div>
 
         <div class="playlist-area" id="playlist"></div>
         <div id="pagination" class="pagination"></div>
         <div class="toast" id="toast"></div>
 
-        <!-- PLAYER FOOTER - Always visible -->
         <div class="player-footer">
             <div class="now-playing-info">
                 <div class="mini-cover" id="footer-cover">🎵</div>
                 <div class="np-text">
-                    <h4 id="current-title">Musiqa tanlang</h4>
+                    <h4 id="current-title">LOADING...</h4>
                     <p id="current-artist">...</p>
                 </div>
             </div>
@@ -284,11 +282,11 @@
             </div>
 
             <div class="controls">
-                <button class="ctrl-btn" id="repeatBtn" onclick="toggleRepeat()" title="Takrorlash">🔁</button>
+                <button class="ctrl-btn" id="repeatBtn" onclick="toggleRepeat()" title="Repeat">🔁</button>
                 <button class="ctrl-btn" onclick="changeTrack(-1)">⏮</button>
                 <button class="ctrl-btn main-play" id="play-pause" onclick="togglePlay()">▶</button>
                 <button class="ctrl-btn" onclick="changeTrack(1)">⏭</button>
-                <button class="ctrl-btn" id="shuffleBtn" onclick="toggleShuffle()" title="Aralash">🔀</button>
+                <button class="ctrl-btn" id="shuffleBtn" onclick="toggleShuffle()" title="Shuffle">🔀</button>
             </div>
             
             <audio id="audio"></audio>
@@ -296,10 +294,13 @@
     </div>
 
     <script>
-        let allTracks = [], filtered = [], currentIdx = -1, currentPage = 1;
-        let currentTab = 'all';
+        let allTracks = [];
+        let filtered = []; 
+        let currentIdx = -1;
+        let currentPage = 1;
+        let currentTab = 'all'; 
+        
         let favorites = JSON.parse(localStorage.getItem('favorites')) || [];
-        let downloads = JSON.parse(localStorage.getItem('downloads')) || {};
         let db;
         const audio = document.getElementById('audio');
         const DB_NAME = 'MusicPlayerDB';
@@ -309,11 +310,15 @@
         let shuffleMode = false;
         let originalOrder = [];
 
+        const SOURCES = {
+            uzbek: "https://raw.githubusercontent.com/iptv-free/TV/refs/heads/FREE/uzbek.m3u",
+            foreign: "https://raw.githubusercontent.com/iptv-free/TV/refs/heads/FREE/mp3bob_final.m3u"
+        };
+
         const request = indexedDB.open(DB_NAME, DB_VERSION);
-        request.onerror = () => console.log('IndexedDB xatosi');
+        request.onerror = () => console.log('IndexedDB error');
         request.onsuccess = (event) => {
             db = event.target.result;
-            loadDownloadedSongs();
         };
         request.onupgradeneeded = (event) => {
             db = event.target.result;
@@ -358,32 +363,43 @@
         function switchTab(tab) {
             currentTab = tab;
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            event.currentTarget.classList.add('active');
+            
+            if(tab === 'all') document.querySelector('.tab:nth-child(1)').classList.add('active');
+            if(tab === 'favorites') document.querySelector('.tab:nth-child(2)').classList.add('active');
+            
             currentPage = 1;
             updateUI();
         }
 
-        async function fetchM3U() {
+        async function loadSource(type) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            if(type === 'uzbek') document.querySelector('.tab:nth-child(3)').classList.add('active');
+            if(type === 'foreign') document.querySelector('.tab:nth-child(4)').classList.add('active');
+            
+            currentTab = type;
+            currentPage = 1;
+            
             try {
-                const res = await fetch("https://raw.githubusercontent.com/iptv-free/TV/refs/heads/FREE/uzbek.m3u");
+                showToast('⏳ Loading...');
+                const res = await fetch(SOURCES[type]);
                 const text = await res.text();
                 parseM3U(text);
             } catch (e) {
-                allTracks = [
-                    { id: 1, title: "Sevgi Qo'shig'i", artist: "Yulduz Usmonova", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", icon: "Y" },
-                    { id: 2, title: "Jononim", artist: "Shohruhxon", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", icon: "S" },
-                    { id: 3, title: "Bahor Keldi", artist: "Rayhon", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", icon: "R" },
-                    { id: 4, title: "Ummon - Sevasanmi", artist: "Ummon", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3", icon: "U" },
-                    { id: 5, title: "Kelginay", artist: "Diyo", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3", icon: "D" }
-                ];
+                showToast('❌ Network error');
+                allTracks = [];
                 updateUI();
-                updateCounts();
             }
+        }
+
+        async function fetchM3U() {
+            loadSource('uzbek');
         }
 
         function parseM3U(text) {
             const lines = text.split('\n');
-            let id = 1;
+            let newTracks = [];
+            let idCounter = Date.now();
+            
             for (let i = 0; i < lines.length; i++) {
                 if(lines[i].startsWith('#EXTINF')) {
                     let raw = lines[i].split(',')[1] || "";
@@ -391,147 +407,38 @@
                     let title = (parts[0].length > 8 && !isNaN(parts[0])) ? parts.slice(1).join(' ') : raw;
                     
                     if (lines[i+1]) {
-                        allTracks.push({ 
-                            id: id++,
+                        newTracks.push({ 
+                            id: idCounter++, 
                             title: title, 
-                            artist: "Noma'lum Ijrochi", 
+                            artist: "ZunoMusic", 
                             url: lines[i+1].trim(), 
                             icon: title.charAt(0).toUpperCase() 
                         });
                     }
                 }
             }
+            allTracks = newTracks;
             originalOrder = [...allTracks];
+            updateCounts();
             updateUI();
-            updateCounts();
-        }
-
-        function loadDownloadedSongs() {
-            if (!db) return;
-            const transaction = db.transaction(['songs'], 'readonly');
-            const store = transaction.objectStore('songs');
-            const req = store.getAll();
-            
-            req.onsuccess = () => {
-                const downloadedList = req.result;
-                downloads = {};
-                downloadedList.forEach(song => {
-                    downloads[song.id] = song;
-                });
-                updateCounts();
-                if (currentTab === 'downloads') {
-                    updateUI();
-                }
-            };
-        }
-
-        function saveToDB(song, blobUrl) {
-            if (!db) return;
-            const transaction = db.transaction(['songs'], 'readwrite');
-            const store = transaction.objectStore('songs');
-            
-            const songData = {
-                id: song.id, title: song.title, artist: song.artist,
-                url: song.url, icon: song.icon, blobUrl: blobUrl,
-                downloadedAt: new Date().toISOString()
-            };
-            
-            const req = store.put(songData);
-            req.onsuccess = () => {
-                downloads[song.id] = songData;
-                showToast('✅ Yuklab olindi!');
-                updateCounts();
-                if (currentTab === 'downloads') updateUI();
-            };
-        }
-
-        function deleteFromDB(id) {
-            if (!db) return;
-            const transaction = db.transaction(['songs'], 'readwrite');
-            const store = transaction.objectStore('songs');
-            store.delete(id);
-            transaction.oncomplete = () => {
-                delete downloads[id];
-                showToast('🗑️ O\'chirildi');
-                updateCounts();
-                if (currentTab === 'downloads') updateUI();
-            };
-        }
-
-        function toggleLike(id, event) {
-            if (event) { event.stopPropagation(); event.preventDefault(); }
-            const idx = favorites.indexOf(id);
-            if (idx > -1) {
-                favorites.splice(idx, 1);
-                showToast('💔 Sevimlilardan o\'chirildi');
-            } else {
-                favorites.push(id);
-                showToast('❤️ Sevimlilarga qo\'shildi');
-            }
-            localStorage.setItem('favorites', JSON.stringify(favorites));
-            updateCounts();
-            renderPage(currentPage);
-        }
-
-        async function toggleDownload(id, event) {
-            if (event) { event.stopPropagation(); event.preventDefault(); }
-            const track = allTracks.find(t => t.id === id) || filtered.find(t => t.id === id);
-            if (!track) return;
-            
-            if (downloads[id]) {
-                if (downloads[id].blobUrl) URL.revokeObjectURL(downloads[id].blobUrl);
-                deleteFromDB(id);
-                return;
-            }
-            
-            showToast('⏳ Yuklanmoqda...');
-            try {
-                const response = await fetch(track.url);
-                const blob = await response.blob();
-                const blobUrl = URL.createObjectURL(blob);
-                saveToDB(track, blobUrl);
-            } catch (e) {
-                showToast('❌ Yuklab bo\'lmadi');
-            }
+            showToast('✅ Finished (' + allTracks.length + ')');
         }
 
         function updateCounts() {
             document.getElementById('allCount').innerText = allTracks.length;
             document.getElementById('favCount').innerText = favorites.length;
-           
         }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        function handleSearch() {
+            currentPage = 1;
+            updateUI();
+        }
 
         function updateUI() {
             const q = document.getElementById('search').value.toLowerCase();
             
             if (currentTab === 'favorites') {
                 filtered = allTracks.filter(t => favorites.includes(t.id) && t.title.toLowerCase().includes(q));
-            } else if (currentTab === 'downloads') {
-                filtered = Object.values(downloads).filter(t => t.title.toLowerCase().includes(q));
             } else {
                 filtered = allTracks.filter(t => t.title.toLowerCase().includes(q));
             }
@@ -544,13 +451,13 @@
             const list = document.getElementById('playlist');
             list.innerHTML = "";
             
-            const start = (page - 1) * 20;
-            const end = start + 20;
+            const itemsPerPage = 20;
+            const start = (page - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
             
             if(filtered.length === 0) {
-                let msg = "Hech narsa topilmadi", icon = "🔍";
-                if (currentTab === 'favorites') { msg = "Sevimlilar bo'sh"; icon = "💔"; }
-                else if (currentTab === 'downloads') { msg = "Hali yuklanmagan"; icon = "📥"; }
+                let msg = "No results found", icon = "🔍";
+                if (currentTab === 'favorites') { msg = "No favorites yet"; icon = "💔"; }
                 list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${icon}</div><div>${msg}</div></div>`;
                 return;
             }
@@ -558,7 +465,6 @@
             filtered.slice(start, end).forEach((t, i) => {
                 const globalIdx = start + i;
                 const isLiked = favorites.includes(t.id);
-                const isDownloaded = !!downloads[t.id];
                 
                 const div = document.createElement('div');
                 div.className = `song-card ${globalIdx === currentIdx ? 'active' : ''}`;
@@ -570,8 +476,7 @@
                         <div class="song-artist">${t.artist}</div>
                     </div>
                     <div class="song-actions">
-                        <button class="action-btn ${isLiked ? 'liked' : ''}" onclick="toggleLike(${t.id}, event)" title="${isLiked ? 'O\'chirish' : 'Sevimli'}">${isLiked ? '❤️' : '🤍'}</button>
-
+                        <button class="action-btn ${isLiked ? 'liked' : ''}" onclick="toggleLike(${t.id}, event)" title="${isLiked ? 'Remove' : 'Favorite'}">${isLiked ? '❤️' : '🤍'}</button>
                     </div>
                 `;
                 
@@ -585,11 +490,20 @@
             const pag = document.getElementById('pagination');
             pag.innerHTML = "";
             const total = Math.ceil(filtered.length / 20);
+            
             if (total <= 1) return;
             
             let start = Math.max(1, currentPage - 2);
             let end = Math.min(total, start + 4);
             if (end === total) start = Math.max(1, total - 4);
+
+            if (currentPage > 1) {
+                const prev = document.createElement('button');
+                prev.className = 'page-btn';
+                prev.innerText = '«';
+                prev.onclick = () => renderPage(currentPage - 1);
+                pag.appendChild(prev);
+            }
 
             for (let i = start; i <= end; i++) {
                 const b = document.createElement('button');
@@ -598,6 +512,14 @@
                 b.onclick = () => renderPage(i);
                 pag.appendChild(b);
             }
+
+            if (currentPage < total) {
+                const next = document.createElement('button');
+                next.className = 'page-btn';
+                next.innerText = '»';
+                next.onclick = () => renderPage(currentPage + 1);
+                pag.appendChild(next);
+            }
         }
 
         function play(idx) {
@@ -605,7 +527,7 @@
             currentIdx = idx;
             const track = filtered[idx];
             
-            audio.src = track.blobUrl || track.url;
+            audio.src = track.url;
             audio.play().catch(e => console.log("Autoplay blocked"));
             
             document.getElementById('current-title').innerText = track.title;
@@ -643,15 +565,15 @@
             if (repeatMode === 0) {
                 btn.innerText = "🔁";
                 btn.classList.remove('active');
-                showToast('🔁 Takrorlash: YO\'Q');
+                showToast('🔁 Repeat: OFF');
             } else if (repeatMode === 1) {
                 btn.innerText = "🔁";
                 btn.classList.add('active');
-                showToast('🔁 Takrorlash: BARCHASI');
+                showToast('🔁 Repeat: ALL');
             } else if (repeatMode === 2) {
                 btn.innerText = "🔂";
                 btn.classList.add('active');
-                showToast('🔂 Takrorlash: BITTA');
+                showToast('🔂 Repeat: ONE');
             }
         }
 
@@ -663,13 +585,13 @@
                 btn.classList.add('active');
                 if (originalOrder.length === 0) originalOrder = [...filtered];
                 filtered = [...filtered].sort(() => Math.random() - 0.5);
-                showToast('🔀 Aralash: ON');
+                showToast('🔀 Shuffle: ON');
             } else {
                 btn.classList.remove('active');
                 if (originalOrder.length > 0) {
                     filtered = [...originalOrder];
                 }
-                showToast('🔀 Aralash: OFF');
+                showToast('🔀 Shuffle: OFF');
             }
             
             currentPage = 1;
@@ -687,13 +609,9 @@
                 next = currentIdx + direction;
                 
                 if (next >= filtered.length) {
-                    if (repeatMode === 1) {
-                        next = 0;
-                    } else {
-                        next = 0;
-                    }
+                    next = repeatMode === 1 ? 0 : filtered.length - 1;
                 } else if (next < 0) {
-                    next = filtered.length - 1;
+                    next = repeatMode === 1 ? filtered.length - 1 : 0;
                 }
             }
             
@@ -713,6 +631,21 @@
                 document.getElementById('progress').style.width = percent + "%";
             }
         };
+
+        function toggleLike(id, event) {
+            if (event) { event.stopPropagation(); event.preventDefault(); }
+            const idx = favorites.indexOf(id);
+            if (idx > -1) {
+                favorites.splice(idx, 1);
+                showToast('💔 Removed from favorites');
+            } else {
+                favorites.push(id);
+                showToast('❤️ Added to favorites');
+            }
+            localStorage.setItem('favorites', JSON.stringify(favorites));
+            updateCounts();
+            renderPage(currentPage);
+        }
 
         function showToast(msg) {
             const toast = document.getElementById('toast');
